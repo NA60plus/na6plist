@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "na6plist"
+version = "0.1.0"
+description = "NA60plus build tool wrapper (na6pbuild)"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [ { name = "NA60plus" } ]
+dependencies = []
