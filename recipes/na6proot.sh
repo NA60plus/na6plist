@@ -2,7 +2,28 @@
 # Recipe: NA6PRoot itself
 set -euo pipefail
 
-SOURCE_DIR="${NA6PROOT_SOURCE:-$(cd "$(dirname "$0")/.." && pwd)}"
+# If NA6PROOT_SOURCE is not set, clone from GitHub if not already present
+if [ -z "${NA6PROOT_SOURCE:-}" ]; then
+  SOURCE_DIR="$BUILD_AREA/sources/NA6PRoot"
+  
+  # Try to find it in common locations first
+  for candidate in "$(cd "$(dirname "$0")/.." && pwd)" "$HOME/NA6PRoot" "$HOME/na6proot"; do
+    if [ -d "$candidate" ] && [ -f "$candidate/CMakeLists.txt" ] && [ -f "$candidate/NA6PSim.cxx" ]; then
+      SOURCE_DIR="$candidate"
+      break
+    fi
+  done
+  
+  # If not found in common locations, clone from GitHub
+  if [ ! -d "$SOURCE_DIR" ] || [ ! -f "$SOURCE_DIR/CMakeLists.txt" ]; then
+    mkdir -p "$BUILD_AREA/sources"
+    echo "==> Cloning NA6PRoot from GitHub..."
+    git clone https://github.com/galocco/NA6PRoot.git "$SOURCE_DIR"
+  fi
+else
+  SOURCE_DIR="$NA6PROOT_SOURCE"
+fi
+
 BUILD_DIR="$BUILD_AREA/builds/na6proot"
 
 ROOT_PREFIX="$(na6pbuild_prefix root)"

@@ -195,9 +195,15 @@ def save_state(work_dir: Path, state: dict):
 
 
 def hash_source_dir(src: Path, extensions: tuple = (".cxx", ".h", ".hh", ".cc", ".cpp", ".hpp", "CMakeLists.txt")) -> str:
-    """Return a stable hash of all relevant source files under src."""
+    """Return a stable hash of all relevant source files under src, excluding build artifacts."""
     hasher = hashlib.sha256()
+    # Directories to skip (build artifacts, caches, etc.)
+    skip_dirs = {"build", "CMakeFiles", ".git", ".vscode", "__pycache__", ".pytest_cache", ".tox", "dist", "*.egg-info"}
+    
     for path in sorted(src.rglob("*")):
+        # Skip if any parent directory is in skip_dirs
+        if any(part in skip_dirs for part in path.relative_to(src).parts):
+            continue
         if path.is_file() and (path.suffix in extensions or path.name in extensions):
             hasher.update(str(path.relative_to(src)).encode())
             hasher.update(path.read_bytes())
@@ -328,12 +334,19 @@ def detect_na6proot_source() -> Path:
     if is_na6proot_dir(pkg_root):
         return pkg_root
 
+    # If not found anywhere, suggest cloning
+    work_dir = Path(os.environ.get("BUILD_AREA", Path.home() / "na6pbuild_sw"))
+    suggested_path = work_dir / "sources" / "NA6PRoot"
+    
     tried = "\n  - ".join(str(p) for p in candidates + [pkg_root])
     raise FileNotFoundError(
         "Could not locate NA6PRoot source directory. "
-        "Set NA6PROOT_SOURCE to a path containing CMakeLists.txt and NA6PSim.cxx.\n"
+        "Set NA6PROOT_SOURCE to a path containing CMakeLists.txt and NA6PSim.cxx,\n"
+        "or the recipe will attempt to clone from GitHub to:\n"
+        f"  {suggested_path}\n\n"
         f"Searched:\n  - {tried}"
     )
+
 
 
 # ---------------------------------------------------------------------------
@@ -490,10 +503,12 @@ def cmd_build(args, work_dir: Path, versions: dict):
         # For na6proot, also check if the source has changed since last build
         if already_built and pkg == "na6proot":
             try:
-                src_dir = Path(os.environ.get("NA6PROOT_SOURCE", "")) or detect_na6proot_source()
+                na6proot_src_env = os.environ.get("NA6PROOT_SOURCE", "")
+                src_dir = Path(na6proot_src_env).resolve() if na6proot_src_env else detect_na6proot_source()
                 current_hash = hash_source_dir(src_dir)
-                if pkg_state.get("source_hash") != current_hash:
-                    info(f"{bold(pkg)}: source changed, rebuilding...")
+                stored_hash = pkg_state.get("source_hash")
+                if stored_hash != current_hash:
+                    info(f"{bold(pkg)}: source changed (stored={stored_hash[:8]}..., current={current_hash[:8]}...), rebuilding...")
                     already_built = False
             except FileNotFoundError:
                 pass  # will fail later with a proper error
@@ -555,7 +570,8 @@ def cmd_build(args, work_dir: Path, versions: dict):
         # For na6proot, record the source hash so we can detect future changes
         if pkg == "na6proot":
             try:
-                src_dir = Path(env.get("NA6PROOT_SOURCE", ""))
+                na6proot_src_env = env.get("NA6PROOT_SOURCE", "")
+                src_dir = Path(na6proot_src_env).resolve() if na6proot_src_env else detect_na6proot_source()
                 if src_dir.is_dir():
                     state[pkg]["source_hash"] = hash_source_dir(src_dir)
             except Exception:

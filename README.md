@@ -21,7 +21,7 @@ source ~/na6pbuild_sw/env.sh
 
 # 5. Run the simulation
 mkdir tst && cd tst
-na6psim -n 5 -g $NA6PROOT_ROOT/share/test/genbox.C+
+na6psim -n 5 -g dir_with_na6pbuild_sw/sw/na6proot/dev/share/test/genbox.C+
 ```
 
 If you prefer editable/developer install:
