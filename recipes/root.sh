@@ -22,6 +22,15 @@ fi
 mkdir -p "$BUILD_DIR" "$INSTALL_PREFIX"
 cd "$BUILD_DIR"
 
+if [ -f CMakeCache.txt ]; then
+  cached_source="$(sed -n 's|^CMAKE_HOME_DIRECTORY:INTERNAL=||p' CMakeCache.txt | head -n1 || true)"
+  if [ -n "$cached_source" ] && [ "$cached_source" != "$SOURCE_DIR" ]; then
+    echo "==> Detected stale CMake cache (old source: $cached_source)"
+    echo "==> Resetting build directory for ROOT..."
+    rm -rf CMakeCache.txt CMakeFiles
+  fi
+fi
+
 cmake "$SOURCE_DIR" \
   -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
   -DCMAKE_BUILD_TYPE=Release \
