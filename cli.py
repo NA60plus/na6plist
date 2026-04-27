@@ -77,7 +77,6 @@ SYSTEM_LIBS = {
     "libssl-dev / openssl-devel": ["pkg-config", "--exists", "openssl"],
     "libxml2-dev / libxml2-devel": ["pkg-config", "--exists", "libxml-2.0"],
     "libexpat-dev": ["pkg-config", "--exists", "expat"],
-    "hdf5 (libhdf5-dev)": ["pkg-config", "--exists", "hdf5"],
     "python3-dev": [sys.executable, "-c", "import sys; assert sys.version_info >= (3,8)"],
 }
 
