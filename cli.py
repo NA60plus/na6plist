@@ -76,10 +76,14 @@ SYSTEM_PREREQS = {
 SYSTEM_LIBS = {
     "libssl-dev / openssl-devel": ["pkg-config", "--exists", "openssl"],
     "libxml2-dev / libxml2-devel": ["pkg-config", "--exists", "libxml-2.0"],
-    "libxerces-c-dev (for Geant4 GDML)": ["pkg-config", "--exists", "xerces-c"],
     "libexpat-dev": ["pkg-config", "--exists", "expat"],
     "hdf5 (libhdf5-dev)": ["pkg-config", "--exists", "hdf5"],
     "python3-dev": [sys.executable, "-c", "import sys; assert sys.version_info >= (3,8)"],
+}
+
+REQUIRED_SYSTEM_LIBS = {
+    "libxerces-c-dev (required for Geant4 GDML)": ["pkg-config", "--exists", "xerces-c"],
+    "libhdf5-dev (required for NA6PRoot)": ["bash", "-lc", "pkg-config --exists hdf5 || pkg-config --exists hdf5-serial || command -v h5cc >/dev/null 2>&1"],
 }
 
 # ---------------------------------------------------------------------------
@@ -88,6 +92,36 @@ SYSTEM_LIBS = {
 
 RECIPES_DIR = Path(__file__).parent / "recipes"
 STATE_FILE_NAME = ".na6pbuild_state.json"
+
+
+def _candidate_recipes_dirs() -> list[Path]:
+    candidates: list[Path] = []
+
+    env_dir = os.environ.get("NA6PBUILD_RECIPES_DIR")
+    if env_dir:
+        candidates.append(Path(env_dir).expanduser().resolve())
+
+    module_dir = Path(__file__).resolve().parent
+    candidates.extend([
+        module_dir / "recipes",
+        module_dir.parent / "recipes",
+        Path.cwd() / "recipes",
+    ])
+
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for cand in candidates:
+        if cand not in seen:
+            seen.add(cand)
+            unique.append(cand)
+    return unique
+
+
+def get_recipes_dir() -> Path:
+    for cand in _candidate_recipes_dirs():
+        if cand.is_dir():
+            return cand
+    return RECIPES_DIR
 
 
 def bold(s: str) -> str:
@@ -110,6 +144,22 @@ def warn(msg: str):
 
 def error(msg: str):
     print(f"  {red('ERROR:')} {msg}", file=sys.stderr)
+
+
+def pkg_config_env() -> dict[str, str]:
+    env = os.environ.copy()
+    extra_paths: list[str] = []
+    for p in (
+        Path.home() / "local/lib/pkgconfig",
+        Path.home() / "local/lib64/pkgconfig",
+    ):
+        if p.is_dir():
+            extra_paths.append(str(p))
+
+    if extra_paths:
+        current = env.get("PKG_CONFIG_PATH", "")
+        env["PKG_CONFIG_PATH"] = ":".join(extra_paths + ([current] if current else []))
+    return env
 
 
 def topo_sort(packages: list[str], dep_graph: dict) -> list[str]:
@@ -236,19 +286,44 @@ def build_env(work_dir: Path, packages: list[str], versions: dict) -> dict[str, 
 
 
 def detect_na6proot_source() -> Path:
+    def is_na6proot_dir(path: Path) -> bool:
+        return (path / "CMakeLists.txt").exists() and (path / "NA6PSim.cxx").exists()
+
     env_source = os.environ.get("NA6PROOT_SOURCE")
     if env_source:
-        return Path(env_source).expanduser().resolve()
+        src = Path(env_source).expanduser().resolve()
+        if is_na6proot_dir(src):
+            return src
+        raise FileNotFoundError(
+            f"NA6PROOT_SOURCE is set to '{src}' but this is not a valid NA6PRoot source directory"
+        )
 
     cwd = Path.cwd().resolve()
-    if (cwd / "CMakeLists.txt").exists() and (cwd / "NA6PSim.cxx").exists():
-        return cwd
+    candidates = [
+        cwd,
+        cwd / "NA6PRoot",
+        cwd / "na6proot",
+        cwd.parent / "NA6PRoot",
+        cwd.parent / "na6proot",
+        Path.home() / "NA6PRoot",
+        Path.home() / "na6proot",
+    ]
+
+    for cand in candidates:
+        cand = cand.resolve()
+        if is_na6proot_dir(cand):
+            return cand
 
     pkg_root = Path(__file__).resolve().parent.parent
-    if (pkg_root / "CMakeLists.txt").exists() and (pkg_root / "NA6PSim.cxx").exists():
+    if is_na6proot_dir(pkg_root):
         return pkg_root
 
-    return cwd
+    tried = "\n  - ".join(str(p) for p in candidates + [pkg_root])
+    raise FileNotFoundError(
+        "Could not locate NA6PRoot source directory. "
+        "Set NA6PROOT_SOURCE to a path containing CMakeLists.txt and NA6PSim.cxx.\n"
+        f"Searched:\n  - {tried}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +333,7 @@ def detect_na6proot_source() -> Path:
 def cmd_doctor(_args, _work_dir, _versions):
     print(bold("==> Checking system prerequisites for na6pbuild\n"))
     ok = True
+    pc_env = pkg_config_env()
 
     print("  Checking executables:")
     for name, cmd in SYSTEM_PREREQS.items():
@@ -271,10 +347,21 @@ def cmd_doctor(_args, _work_dir, _versions):
     for name, check_cmd in SYSTEM_LIBS.items():
         try:
             subprocess.check_call(check_cmd, stdout=subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL)
+                                  stderr=subprocess.DEVNULL, env=pc_env)
             status = green("OK")
         except (subprocess.CalledProcessError, FileNotFoundError):
             status = yellow("NOT FOUND (may be optional)")
+        print(f"    {name:<45} {status}")
+
+    print("\n  Checking required libraries:")
+    for name, check_cmd in REQUIRED_SYSTEM_LIBS.items():
+        try:
+            subprocess.check_call(check_cmd, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, env=pc_env)
+            status = green("OK")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            status = red("MISSING")
+            ok = False
         print(f"    {name:<45} {status}")
 
     cmake_ver = subprocess.run(["cmake", "--version"], capture_output=True, text=True)
@@ -382,6 +469,8 @@ def cmd_build(args, work_dir: Path, versions: dict):
 
     print(bold(f"\n==> Build plan: {' → '.join(build_order)}\n"))
 
+    recipes_dir = get_recipes_dir()
+
     for pkg in build_order:
         ver = versions[pkg]
         prefix = get_install_prefix(work_dir, pkg, ver)
@@ -392,9 +481,15 @@ def cmd_build(args, work_dir: Path, versions: dict):
             info(f"{bold(pkg)} {ver}  {green('already installed, skipping')}")
             continue
 
-        recipe = RECIPES_DIR / f"{pkg}.sh"
+        recipe = recipes_dir / f"{pkg}.sh"
         if not recipe.exists():
-            error(f"No recipe found for '{pkg}' (expected {recipe})")
+            searched = "\n    - ".join(str(p / f"{pkg}.sh") for p in _candidate_recipes_dirs())
+            error(
+                f"No recipe found for '{pkg}'\n"
+                f"  expected: {recipe}\n"
+                f"  searched:\n    - {searched}\n"
+                "  tip: set NA6PBUILD_RECIPES_DIR=/path/to/recipes"
+            )
             return 1
 
         info(f"Building {bold(pkg)} {ver}...")
@@ -412,8 +507,13 @@ def cmd_build(args, work_dir: Path, versions: dict):
         env["INSTALL_PREFIX"] = str(prefix)
         env["JOBS"] = jobs
         env[f"{pkg.upper()}_VERSION"] = ver
-        # Source directory for na6proot
-        env["NA6PROOT_SOURCE"] = str(detect_na6proot_source())
+        # Source directory only needed for na6proot
+        if pkg == "na6proot":
+            try:
+                env["NA6PROOT_SOURCE"] = str(detect_na6proot_source())
+            except FileNotFoundError as exc:
+                error(str(exc))
+                return 1
 
         # Write a wrapper that sources the preamble, then runs the recipe
         wrapper = work_dir / "tmp" / f"build_{pkg}.sh"

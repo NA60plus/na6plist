@@ -18,6 +18,13 @@ fi
 mkdir -p "$BUILD_DIR" "$INSTALL_PREFIX"
 cd "$BUILD_DIR"
 
+# Allow pkg-config to discover local installs (e.g. ~/local)
+for pcdir in "$HOME/local/lib/pkgconfig" "$HOME/local/lib64/pkgconfig"; do
+  if [ -d "$pcdir" ]; then
+    export PKG_CONFIG_PATH="$pcdir:${PKG_CONFIG_PATH:-}"
+  fi
+done
+
 cmake "$SOURCE_DIR" \
   -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
   -DCMAKE_BUILD_TYPE=Release \
