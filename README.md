@@ -111,19 +111,6 @@ ROOT_VERSION=6.30.06 python3 na6plist/na6pbuild build na6proot
 
 ---
 
-## System prerequisites
-
-Run `na6pbuild doctor` to check. Required system packages (Ubuntu/Debian names):
-
-```
-cmake git curl make g++ pkg-config
-libssl-dev libxml2-dev libxerces-c-dev libexpat-dev
-libhdf5-dev python3-dev
-libx11-dev libxpm-dev libxft-dev libxext-dev  # for ROOT graphics
-```
-
----
-
 ## Recipes
 
 Each package has a shell recipe in `na6plist/recipes/<pkg>.sh`. A recipe receives:

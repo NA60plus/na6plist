@@ -38,3 +38,5 @@ cmake "$SOURCE_DIR" \
 
 cmake --build . -j"${JOBS:-4}"
 cmake --install .
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

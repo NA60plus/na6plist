@@ -9,12 +9,13 @@ URL="https://archives.boost.io/release/${VERSION}/source/boost_${VUNDER}.tar.gz"
 
 SOURCE_DIR="$BUILD_AREA/sources/boost_${VUNDER}"
 BUILD_DIR="$BUILD_AREA/builds/boost_${VERSION}"
+ARCHIVE_DIR="$BUILD_AREA/builds/boost_${VERSION}"
 
 if [ ! -d "$SOURCE_DIR" ]; then
-  mkdir -p "$BUILD_AREA/sources"
+  mkdir -p "$BUILD_AREA/sources" "$ARCHIVE_DIR"
   echo "==> Downloading Boost ${VERSION}..."
-  curl -L "$URL" -o "/tmp/boost_${VUNDER}.tar.gz"
-  tar xzf "/tmp/boost_${VUNDER}.tar.gz" -C "$BUILD_AREA/sources"
+  curl -L "$URL" -o "$ARCHIVE_DIR/boost_${VUNDER}.tar.gz"
+  tar xzf "$ARCHIVE_DIR/boost_${VUNDER}.tar.gz" -C "$BUILD_AREA/sources"
 fi
 
 mkdir -p "$INSTALL_PREFIX"
@@ -26,3 +27,5 @@ echo "==> Bootstrapping Boost ${VERSION}..."
 
 echo "==> Building and installing Boost ${VERSION}..."
 ./b2 -j"${JOBS:-4}" install
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

@@ -7,12 +7,13 @@ URL="https://github.com/FairRootGroup/FairLogger/archive/refs/tags/v${VERSION}.t
 
 SOURCE_DIR="$BUILD_AREA/sources/FairLogger-${VERSION}"
 BUILD_DIR="$BUILD_AREA/builds/FairLogger-${VERSION}"
+ARCHIVE_DIR="$BUILD_AREA/builds/FairLogger-${VERSION}"
 
 if [ ! -d "$SOURCE_DIR" ]; then
-  mkdir -p "$BUILD_AREA/sources"
+  mkdir -p "$BUILD_AREA/sources" "$ARCHIVE_DIR"
   echo "==> Downloading FairLogger ${VERSION}..."
-  curl -L "$URL" -o "/tmp/FairLogger-${VERSION}.tar.gz"
-  tar xzf "/tmp/FairLogger-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
+  curl -L "$URL" -o "$ARCHIVE_DIR/FairLogger-${VERSION}.tar.gz"
+  tar xzf "$ARCHIVE_DIR/FairLogger-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
 fi
 
 mkdir -p "$BUILD_DIR" "$INSTALL_PREFIX"
@@ -36,3 +37,5 @@ cmake "$SOURCE_DIR" \
 
 cmake --build . -j"${JOBS:-4}"
 cmake --install .
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

@@ -7,12 +7,13 @@ URL="https://github.com/fmtlib/fmt/archive/refs/tags/${VERSION}.tar.gz"
 
 SOURCE_DIR="$BUILD_AREA/sources/fmt-${VERSION}"
 BUILD_DIR="$BUILD_AREA/builds/fmt-${VERSION}"
+ARCHIVE_DIR="$BUILD_AREA/builds/fmt-${VERSION}"
 
 if [ ! -d "$SOURCE_DIR" ]; then
-  mkdir -p "$BUILD_AREA/sources"
+  mkdir -p "$BUILD_AREA/sources" "$ARCHIVE_DIR"
   echo "==> Downloading fmt ${VERSION}..."
-  curl -L "$URL" -o "/tmp/fmt-${VERSION}.tar.gz"
-  tar xzf "/tmp/fmt-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
+  curl -L "$URL" -o "$ARCHIVE_DIR/fmt-${VERSION}.tar.gz"
+  tar xzf "$ARCHIVE_DIR/fmt-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
 fi
 
 mkdir -p "$BUILD_DIR" "$INSTALL_PREFIX"
@@ -36,3 +37,5 @@ cmake "$SOURCE_DIR" \
 
 cmake --build . -j"${JOBS:-4}"
 cmake --install .
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

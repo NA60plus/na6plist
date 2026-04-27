@@ -55,64 +55,6 @@ for pcdir in "$HOME/local/lib/pkgconfig" "$HOME/local/lib64/pkgconfig"; do
   fi
 done
 
-# NA6PRoot requires HDF5 at configure time
-HDF5_PKG=""
-if pkg-config --exists hdf5 2>/dev/null; then
-  HDF5_PKG="hdf5"
-elif pkg-config --exists hdf5-serial 2>/dev/null; then
-  HDF5_PKG="hdf5-serial"
-fi
-
-if [ -n "$HDF5_PKG" ]; then
-  HDF5_PREFIX="$(pkg-config --variable=prefix "$HDF5_PKG" 2>/dev/null || true)"
-  if [ -n "$HDF5_PREFIX" ]; then
-    export HDF5_ROOT="$HDF5_PREFIX"
-  fi
-elif command -v h5cc >/dev/null 2>&1; then
-  H5CC_BIN="$(command -v h5cc)"
-  export HDF5_ROOT="$(cd "$(dirname "$H5CC_BIN")/.." && pwd)"
-  export HDF5_C_COMPILER_EXECUTABLE="$H5CC_BIN"
-  if command -v h5c++ >/dev/null 2>&1; then
-    export HDF5_CXX_COMPILER_EXECUTABLE="$(command -v h5c++)"
-  fi
-else
-  echo "ERROR: HDF5 not found (neither pkg-config module hdf5/hdf5-serial nor h5cc wrapper)."
-  echo "Install HDF5 development package (e.g. libhdf5-dev) or expose your custom install in PATH/PKG_CONFIG_PATH."
-  exit 1
-fi
-
-CMAKE_HDF5_ARGS=()
-if [ -n "${HDF5_ROOT:-}" ]; then
-  CMAKE_HDF5_ARGS+=("-DHDF5_ROOT=${HDF5_ROOT}")
-  if [ -d "${HDF5_ROOT}/include" ]; then
-    CMAKE_HDF5_ARGS+=("-DHDF5_INCLUDE_DIR=${HDF5_ROOT}/include")
-    CMAKE_HDF5_ARGS+=("-DHDF5_INCLUDE_DIRS=${HDF5_ROOT}/include")
-    CMAKE_HDF5_ARGS+=("-DHDF5_CXX_INCLUDE_DIR=${HDF5_ROOT}/include")
-  fi
-fi
-if [ -n "${HDF5_C_COMPILER_EXECUTABLE:-}" ]; then
-  CMAKE_HDF5_ARGS+=("-DHDF5_C_COMPILER_EXECUTABLE=${HDF5_C_COMPILER_EXECUTABLE}")
-fi
-if [ -n "${HDF5_CXX_COMPILER_EXECUTABLE:-}" ]; then
-  CMAKE_HDF5_ARGS+=("-DHDF5_CXX_COMPILER_EXECUTABLE=${HDF5_CXX_COMPILER_EXECUTABLE}")
-elif [ -n "${HDF5_C_COMPILER_EXECUTABLE:-}" ]; then
-  CMAKE_HDF5_ARGS+=("-DHDF5_CXX_COMPILER_EXECUTABLE=${HDF5_C_COMPILER_EXECUTABLE}")
-fi
-CMAKE_HDF5_ARGS+=("-DHDF5_CXX_COMPILER_NO_INTERROGATE=TRUE")
-
-# Some custom HDF5 builds provide C+HL but no separate C++ libs.
-# NA6PRoot requests HDF5 CXX component; provide compatible fallbacks.
-if [ -n "${HDF5_ROOT:-}" ] && [ -f "${HDF5_ROOT}/lib/libhdf5.so" ] && [ ! -f "${HDF5_ROOT}/lib/libhdf5_cpp.so" ]; then
-  CMAKE_HDF5_ARGS+=("-DHDF5_hdf5_cpp_LIBRARY=${HDF5_ROOT}/lib/libhdf5.so")
-  CMAKE_HDF5_ARGS+=("-DHDF5_hdf5_cpp_LIBRARY_RELEASE=${HDF5_ROOT}/lib/libhdf5.so")
-  CMAKE_HDF5_ARGS+=("-DHDF5_hdf5_cpp_LIBRARY_DEBUG=${HDF5_ROOT}/lib/libhdf5.so")
-fi
-if [ -n "${HDF5_ROOT:-}" ] && [ -f "${HDF5_ROOT}/lib/libhdf5_hl.so" ] && [ ! -f "${HDF5_ROOT}/lib/libhdf5_hl_cpp.so" ]; then
-  CMAKE_HDF5_ARGS+=("-DHDF5_hdf5_hl_cpp_LIBRARY=${HDF5_ROOT}/lib/libhdf5_hl.so")
-  CMAKE_HDF5_ARGS+=("-DHDF5_hdf5_hl_cpp_LIBRARY_RELEASE=${HDF5_ROOT}/lib/libhdf5_hl.so")
-  CMAKE_HDF5_ARGS+=("-DHDF5_hdf5_hl_cpp_LIBRARY_DEBUG=${HDF5_ROOT}/lib/libhdf5_hl.so")
-fi
-
 # Ensure clean re-configure in case prior cache kept NOTFOUND entries
 rm -f CMakeCache.txt
 rm -rf CMakeFiles
@@ -136,3 +78,5 @@ cmake "$SOURCE_DIR" \
 
 cmake --build . -j"${JOBS:-4}"
 cmake --install .
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

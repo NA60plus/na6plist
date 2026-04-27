@@ -19,6 +19,7 @@ Examples:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -191,6 +192,16 @@ def save_state(work_dir: Path, state: dict):
     state_file = work_dir / STATE_FILE_NAME
     with open(state_file, "w") as f:
         json.dump(state, f, indent=2)
+
+
+def hash_source_dir(src: Path, extensions: tuple = (".cxx", ".h", ".hh", ".cc", ".cpp", ".hpp", "CMakeLists.txt")) -> str:
+    """Return a stable hash of all relevant source files under src."""
+    hasher = hashlib.sha256()
+    for path in sorted(src.rglob("*")):
+        if path.is_file() and (path.suffix in extensions or path.name in extensions):
+            hasher.update(str(path.relative_to(src)).encode())
+            hasher.update(path.read_bytes())
+    return hasher.hexdigest()
 
 
 def get_install_prefix(work_dir: Path, package: str, version: str) -> Path:
@@ -476,6 +487,17 @@ def cmd_build(args, work_dir: Path, versions: dict):
         pkg_state = state.get(pkg, {})
         already_built = pkg_state.get("version") == ver and prefix.exists()
 
+        # For na6proot, also check if the source has changed since last build
+        if already_built and pkg == "na6proot":
+            try:
+                src_dir = Path(os.environ.get("NA6PROOT_SOURCE", "")) or detect_na6proot_source()
+                current_hash = hash_source_dir(src_dir)
+                if pkg_state.get("source_hash") != current_hash:
+                    info(f"{bold(pkg)}: source changed, rebuilding...")
+                    already_built = False
+            except FileNotFoundError:
+                pass  # will fail later with a proper error
+
         if already_built and not args.force:
             info(f"{bold(pkg)} {ver}  {green('already installed, skipping')}")
             continue
@@ -530,6 +552,14 @@ def cmd_build(args, work_dir: Path, versions: dict):
             return rc
 
         state[pkg] = {"version": ver}
+        # For na6proot, record the source hash so we can detect future changes
+        if pkg == "na6proot":
+            try:
+                src_dir = Path(env.get("NA6PROOT_SOURCE", ""))
+                if src_dir.is_dir():
+                    state[pkg]["source_hash"] = hash_source_dir(src_dir)
+            except Exception:
+                pass
         save_state(work_dir, state)
         print(f"  {green('✓')} {bold(pkg)} {ver} installed to {prefix}\n")
 

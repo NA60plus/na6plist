@@ -7,12 +7,13 @@ URL="https://root.cern/download/root_v${VERSION}.source.tar.gz"
 
 SOURCE_DIR="$BUILD_AREA/sources/root-${VERSION}"
 BUILD_DIR="$BUILD_AREA/builds/root-${VERSION}"
+ARCHIVE_DIR="$BUILD_AREA/builds/root-${VERSION}"
 
 if [ ! -d "$SOURCE_DIR" ]; then
-  mkdir -p "$BUILD_AREA/sources"
+  mkdir -p "$BUILD_AREA/sources" "$ARCHIVE_DIR"
   echo "==> Downloading ROOT ${VERSION}..."
-  curl -L "$URL" -o "/tmp/root-${VERSION}.tar.gz"
-  tar xzf "/tmp/root-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
+  curl -L "$URL" -o "$ARCHIVE_DIR/root-${VERSION}.tar.gz"
+  tar xzf "$ARCHIVE_DIR/root-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
   # ROOT tarball extracts to root-<version>
   if [ ! -d "$SOURCE_DIR" ]; then
     mv "$BUILD_AREA/sources/root-${VERSION}" "$SOURCE_DIR" 2>/dev/null || true
@@ -46,3 +47,5 @@ cmake "$SOURCE_DIR" \
 
 cmake --build . -j"${JOBS:-4}"
 cmake --install .
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

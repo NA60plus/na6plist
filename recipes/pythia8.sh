@@ -9,12 +9,13 @@ URL="https://pythia.org/download/pythia83/pythia${VERSION}.tgz"
 
 SOURCE_DIR="$BUILD_AREA/sources/pythia${VERSION}"
 BUILD_DIR="$BUILD_AREA/builds/pythia8-${VERSION}"
+ARCHIVE_DIR="$BUILD_AREA/builds/pythia8-${VERSION}"
 
 if [ ! -d "$SOURCE_DIR" ]; then
-  mkdir -p "$BUILD_AREA/sources"
+  mkdir -p "$BUILD_AREA/sources" "$ARCHIVE_DIR"
   echo "==> Downloading Pythia8 ${VERSION}..."
-  curl -L "$URL" -o "/tmp/pythia${VERSION}.tgz"
-  tar xzf "/tmp/pythia${VERSION}.tgz" -C "$BUILD_AREA/sources"
+  curl -L "$URL" -o "$ARCHIVE_DIR/pythia${VERSION}.tgz"
+  tar xzf "$ARCHIVE_DIR/pythia${VERSION}.tgz" -C "$BUILD_AREA/sources"
 fi
 
 mkdir -p "$INSTALL_PREFIX"
@@ -26,3 +27,5 @@ cd "$SOURCE_DIR"
 
 make -j"${JOBS:-4}"
 make install
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete

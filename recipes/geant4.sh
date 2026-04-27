@@ -7,12 +7,13 @@ URL="https://gitlab.cern.ch/geant4/geant4/-/archive/v${VERSION}/geant4-v${VERSIO
 
 SOURCE_DIR="$BUILD_AREA/sources/geant4-v${VERSION}"
 BUILD_DIR="$BUILD_AREA/builds/geant4-${VERSION}"
+ARCHIVE_DIR="$BUILD_AREA/builds/geant4-${VERSION}"
 
 if [ ! -d "$SOURCE_DIR" ]; then
-  mkdir -p "$BUILD_AREA/sources"
+  mkdir -p "$BUILD_AREA/sources" "$ARCHIVE_DIR"
   echo "==> Downloading Geant4 ${VERSION}..."
-  curl -L "$URL" -o "/tmp/geant4-${VERSION}.tar.gz"
-  tar xzf "/tmp/geant4-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
+  curl -L "$URL" -o "$ARCHIVE_DIR/geant4-${VERSION}.tar.gz"
+  tar xzf "$ARCHIVE_DIR/geant4-${VERSION}.tar.gz" -C "$BUILD_AREA/sources"
 fi
 
 mkdir -p "$BUILD_DIR" "$INSTALL_PREFIX"
@@ -46,3 +47,5 @@ cmake "$SOURCE_DIR" \
 
 cmake --build . -j"${JOBS:-4}"
 cmake --install .
+
+find "${BUILD_AREA}/builds" -maxdepth 2 \( -name "*.tar.gz" -o -name "*.tgz" \) -delete
