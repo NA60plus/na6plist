@@ -301,7 +301,7 @@ def build_env(work_dir: Path, packages: list[str], versions: dict) -> dict[str, 
     return env
 
 
-def detect_na6proot_source() -> Path:
+def detect_na6proot_source(work_dir: Optional[Path] = None) -> Optional[Path]:
     def is_na6proot_dir(path: Path) -> bool:
         return (path / "CMakeLists.txt").exists() and (path / "NA6PSim.cxx").exists()
 
@@ -325,6 +325,13 @@ def detect_na6proot_source() -> Path:
         Path.home() / "na6proot",
     ]
 
+    if work_dir is not None:
+        wd = work_dir.expanduser().resolve()
+        candidates.extend([
+            wd / "sources" / "NA6PRoot",
+            wd / "sources" / "na6proot",
+        ])
+
     for cand in candidates:
         cand = cand.resolve()
         if is_na6proot_dir(cand):
@@ -334,18 +341,7 @@ def detect_na6proot_source() -> Path:
     if is_na6proot_dir(pkg_root):
         return pkg_root
 
-    # If not found anywhere, suggest cloning
-    work_dir = Path(os.environ.get("BUILD_AREA", Path.home() / "na6pbuild_sw"))
-    suggested_path = work_dir / "sources" / "NA6PRoot"
-    
-    tried = "\n  - ".join(str(p) for p in candidates + [pkg_root])
-    raise FileNotFoundError(
-        "Could not locate NA6PRoot source directory. "
-        "Set NA6PROOT_SOURCE to a path containing CMakeLists.txt and NA6PSim.cxx,\n"
-        "or the recipe will attempt to clone from GitHub to:\n"
-        f"  {suggested_path}\n\n"
-        f"Searched:\n  - {tried}"
-    )
+    return None
 
 
 
@@ -504,12 +500,14 @@ def cmd_build(args, work_dir: Path, versions: dict):
         if already_built and pkg == "na6proot":
             try:
                 na6proot_src_env = os.environ.get("NA6PROOT_SOURCE", "")
-                src_dir = Path(na6proot_src_env).resolve() if na6proot_src_env else detect_na6proot_source()
-                current_hash = hash_source_dir(src_dir)
-                stored_hash = pkg_state.get("source_hash")
-                if stored_hash != current_hash:
-                    info(f"{bold(pkg)}: source changed (stored={stored_hash[:8]}..., current={current_hash[:8]}...), rebuilding...")
-                    already_built = False
+                src_dir = Path(na6proot_src_env).resolve() if na6proot_src_env else detect_na6proot_source(work_dir)
+                if src_dir is not None:
+                    current_hash = hash_source_dir(src_dir)
+                    stored_hash = pkg_state.get("source_hash")
+                    if stored_hash != current_hash:
+                        stored_short = (stored_hash or "none")[:8]
+                        info(f"{bold(pkg)}: source changed (stored={stored_short}..., current={current_hash[:8]}...), rebuilding...")
+                        already_built = False
             except FileNotFoundError:
                 pass  # will fail later with a proper error
 
@@ -546,7 +544,11 @@ def cmd_build(args, work_dir: Path, versions: dict):
         # Source directory only needed for na6proot
         if pkg == "na6proot":
             try:
-                env["NA6PROOT_SOURCE"] = str(detect_na6proot_source())
+                src_dir = detect_na6proot_source(work_dir)
+                if src_dir is not None:
+                    env["NA6PROOT_SOURCE"] = str(src_dir)
+                else:
+                    info(f"{bold(pkg)} source not found locally; recipe will clone to {work_dir / 'sources' / 'NA6PRoot'}")
             except FileNotFoundError as exc:
                 error(str(exc))
                 return 1
@@ -571,8 +573,8 @@ def cmd_build(args, work_dir: Path, versions: dict):
         if pkg == "na6proot":
             try:
                 na6proot_src_env = env.get("NA6PROOT_SOURCE", "")
-                src_dir = Path(na6proot_src_env).resolve() if na6proot_src_env else detect_na6proot_source()
-                if src_dir.is_dir():
+                src_dir = Path(na6proot_src_env).resolve() if na6proot_src_env else detect_na6proot_source(work_dir)
+                if src_dir is not None and src_dir.is_dir():
                     state[pkg]["source_hash"] = hash_source_dir(src_dir)
             except Exception:
                 pass

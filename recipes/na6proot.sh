@@ -18,7 +18,7 @@ if [ -z "${NA6PROOT_SOURCE:-}" ]; then
   if [ ! -d "$SOURCE_DIR" ] || [ ! -f "$SOURCE_DIR/CMakeLists.txt" ]; then
     mkdir -p "$BUILD_AREA/sources"
     echo "==> Cloning NA6PRoot from GitHub..."
-    git clone https://github.com/galocco/NA6PRoot.git "$SOURCE_DIR"
+    git clone https://github.com/shahor02/NA6PRoot.git "$SOURCE_DIR"
   fi
 else
   SOURCE_DIR="$NA6PROOT_SOURCE"
