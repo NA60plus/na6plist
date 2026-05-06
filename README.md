@@ -127,20 +127,6 @@ ROOT_DIR="$(na6pbuild_prefix root)/cmake"
 
 ---
 
-## FlukaVMC (optional)
-
-FlukaVMC requires a licensed copy of FLUKA and cannot be downloaded automatically. If you have it:
-
-1. Install FlukaVMC manually to some prefix (e.g. `~/fluka_vmc`).
-2. Pass `-DFlukaVMC_DIR=~/fluka_vmc/lib/cmake/FlukaVMC` when building na6proot:
-   ```bash
-  # Edit na6plist/recipes/na6proot.sh and add the -DFlukaVMC_DIR line,
-   # then rebuild with --force:
-  python3 na6plist/na6pbuild build --force na6proot
-   ```
-
----
-
 ## Troubleshooting
 
 ### ROOT build fails with `read jobs pipe: Bad file descriptor`
