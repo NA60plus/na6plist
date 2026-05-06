@@ -19,15 +19,12 @@ na6pbuild build na6proot
 # 4. Load the environment
 source ~/na6pbuild_sw/env.sh
 
-# 5. Run the simulation
+# 5. Point NA6PROOT_ROOT to your local NA6PRoot install
+export NA6PROOT_ROOT=~/na6pbuild_sw/sw/na6proot/dev
+
+# 6. Run the simulation
 mkdir tst && cd tst
-na6psim -n 5 -g dir_with_na6pbuild_sw/sw/na6proot/dev/share/test/genbox.C+
-```
-
-If you prefer editable/developer install:
-
-```bash
-pip install -e .
+na6psim -n 5 -g $NA6PROOT_ROOT/share/test/genbox.C+
 ```
 
 ---
