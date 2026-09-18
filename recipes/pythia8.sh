@@ -5,7 +5,7 @@ set -euo pipefail
 VERSION="${PYTHIA8_VERSION:-8312}"
 # Pythia8 version format: 8312 -> 8.312
 DOTVER="$(echo $VERSION | sed 's/\(.\)\(.*\)/\1.\2/')"
-URL="https://pythia.org/download/pythia83/pythia${VERSION}.tgz"
+URL="https://pythia.org/releases/pythia83/pythia${VERSION}.tgz"
 
 SOURCE_DIR="$BUILD_AREA/sources/pythia${VERSION}"
 BUILD_DIR="$BUILD_AREA/builds/pythia8-${VERSION}"

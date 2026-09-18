@@ -39,6 +39,7 @@ cmake "$SOURCE_DIR" \
   -Dclad=OFF \
   -Dpython3=ON \
   -Dx11=ON \
+  -Dopengl=ON \
   -Dssl=ON \
   -Dmathmore=ON \
   -Dxrootd=OFF \

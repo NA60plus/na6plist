@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -86,6 +87,20 @@ REQUIRED_SYSTEM_LIBS = {
     "libhdf5-dev (required for NA6PRoot)": ["bash", "-lc", "pkg-config --exists hdf5 || pkg-config --exists hdf5-serial || command -v h5cc >/dev/null 2>&1"],
 }
 
+REQUIRED_PKG_CONFIG = {
+    "X11 (libX11-dev / libX11-devel)": (("x11",), None),
+    "OpenGL (libgl-dev / mesa-libGL-devel)": (("gl",), None),
+    "FreeType (libfreetype-dev / freetype-devel)": (("freetype2",), None),
+    "zlib (zlib1g-dev / zlib-devel)": (("zlib",), None),
+    "libpng (libpng-dev / libpng-devel)": (("libpng",), None),
+    "lzma (liblzma-dev / xz-devel)": (("liblzma",), None),
+    "ncurses (libncurses-dev / ncurses-devel)": (("ncurses", "ncursesw"), None),
+    "readline (libreadline-dev / readline-devel)": (("readline",), None),
+    "Xerces-C (libxerces-c-dev) >= 3.2.0": (("xerces-c",), "3.2.0"),
+    "HDF5 (libhdf5-dev) >= 1.10.0": (("hdf5", "hdf5-serial"), "1.10.0"),
+    "OpenSSL (libssl-dev / openssl-devel) >= 1.1.1": (("openssl",), "1.1.1"),
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -144,6 +159,25 @@ def warn(msg: str):
 
 def error(msg: str):
     print(f"  {red('ERROR:')} {msg}", file=sys.stderr)
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", value))
+
+
+def _version_at_least(actual: str, minimum: str) -> bool:
+    return _version_tuple(actual) >= _version_tuple(minimum)
+
+
+def recipe_fingerprint(recipe: Path, version: str, env: Optional[dict[str, str]] = None) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(recipe.read_bytes())
+    hasher.update(b"\0version\0" + version.encode())
+    for key in ("CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_ARGS", "BUILD_TYPE"):
+        value = (env or os.environ).get(key)
+        if value is not None:
+            hasher.update(b"\0" + key.encode() + b"\0" + value.encode())
+    return hasher.hexdigest()
 
 
 def pkg_config_env() -> dict[str, str]:
@@ -383,6 +417,30 @@ def cmd_doctor(_args, _work_dir, _versions):
             ok = False
         print(f"    {name:<45} {status}")
 
+    print("\n  Checking build libraries and versions:")
+    for name, (modules, minimum) in REQUIRED_PKG_CONFIG.items():
+        if not shutil.which("pkg-config"):
+            print(f"    {name:<55} {red('NOT CHECKED (pkg-config missing)')}")
+            ok = False
+            continue
+        found = next((module for module in modules if subprocess.run(
+            ["pkg-config", "--exists", module], env=pc_env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0), None)
+        actual = None
+        if found:
+            result = subprocess.run(["pkg-config", "--modversion", found],
+                                    capture_output=True, text=True, env=pc_env)
+            actual = result.stdout.strip()
+        if not found:
+            status = red("MISSING")
+            ok = False
+        elif minimum and not _version_at_least(actual, minimum):
+            status = red(f"TOO OLD ({actual})")
+            ok = False
+        else:
+            status = green(f"OK ({actual})")
+        print(f"    {name:<55} {status}")
+
     cmake_ver = subprocess.run(["cmake", "--version"], capture_output=True, text=True)
     if cmake_ver.returncode == 0:
         ver_line = cmake_ver.stdout.splitlines()[0]
@@ -405,7 +463,9 @@ def cmd_list(args, work_dir: Path, versions: dict):
         prefix = get_install_prefix(work_dir, pkg, ver)
         pkg_state = state.get(pkg, {})
         built_ver = pkg_state.get("version")
-        if built_ver == ver and prefix.exists():
+        recipe = get_recipes_dir() / f"{pkg}.sh"
+        current_fp = recipe_fingerprint(recipe, ver) if recipe.exists() else None
+        if built_ver == ver and pkg_state.get("recipe_fingerprint") == current_fp and prefix.exists():
             status = green("installed")
         elif pkg_state.get("version"):
             status = yellow(f"stale ({built_ver})")
@@ -494,7 +554,12 @@ def cmd_build(args, work_dir: Path, versions: dict):
         ver = versions[pkg]
         prefix = get_install_prefix(work_dir, pkg, ver)
         pkg_state = state.get(pkg, {})
-        already_built = pkg_state.get("version") == ver and prefix.exists()
+        recipe = recipes_dir / f"{pkg}.sh"
+        already_built = (pkg_state.get("version") == ver
+                         and pkg_state.get("recipe_fingerprint") == recipe_fingerprint(recipe, ver)
+                         and prefix.exists()) if recipe.exists() else False
+        if pkg_state.get("version") == ver and prefix.exists() and not already_built and not args.force:
+            info(f"{bold(pkg)}: recipe or build options changed, rebuilding...")
 
         # For na6proot, also check if the source has changed since last build
         if already_built and pkg == "na6proot":
@@ -515,7 +580,6 @@ def cmd_build(args, work_dir: Path, versions: dict):
             info(f"{bold(pkg)} {ver}  {green('already installed, skipping')}")
             continue
 
-        recipe = recipes_dir / f"{pkg}.sh"
         if not recipe.exists():
             searched = "\n    - ".join(str(p / f"{pkg}.sh") for p in _candidate_recipes_dirs())
             error(
@@ -568,7 +632,7 @@ def cmd_build(args, work_dir: Path, versions: dict):
             error(f"Build of {pkg} FAILED (exit code {rc}). See log: {log_path}")
             return rc
 
-        state[pkg] = {"version": ver}
+        state[pkg] = {"version": ver, "recipe_fingerprint": recipe_fingerprint(recipe, ver, env)}
         # For na6proot, record the source hash so we can detect future changes
         if pkg == "na6proot":
             try:
