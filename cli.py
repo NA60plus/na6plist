@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,37 @@ import textwrap
 import re
 from pathlib import Path
 from typing import Optional
+
+
+SYSTEM = platform.system()
+
+
+def _os_release() -> dict[str, str]:
+    try:
+        return platform.freedesktop_os_release()
+    except (AttributeError, OSError):
+        return {}
+
+
+OS_RELEASE = _os_release()
+DISTRO = OS_RELEASE.get("ID", "").lower()
+DISTRO_VERSION = OS_RELEASE.get("VERSION_ID", "unknown")
+
+
+def ensure_supported_platform():
+    """Reject platforms for which the current recipes are not supported."""
+    if SYSTEM != "Linux":
+        raise RuntimeError(
+            f"Unsupported platform: {SYSTEM}. "
+            "Additions to na6plist for other operating systems are welcome!"
+        )
+    if DISTRO != "ubuntu":
+        detected = DISTRO or "unknown Linux distribution"
+        raise RuntimeError(
+            f"Unsupported Linux distribution: {detected} {DISTRO_VERSION}. "
+            "na6pbuild currently supports Ubuntu; additions for other "
+            "distributions are welcome!"
+        )
 
 # ---------------------------------------------------------------------------
 # Default versions (override via environment or --version flags)
@@ -681,6 +713,7 @@ def _write_env_script(path: Path, work_dir: Path, packages: list[str], versions:
 # ---------------------------------------------------------------------------
 
 def main():
+    ensure_supported_platform()
     parser = argparse.ArgumentParser(
         description="na6pbuild – build NA6PRoot and its dependencies",
         formatter_class=argparse.RawDescriptionHelpFormatter,
