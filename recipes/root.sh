@@ -43,6 +43,8 @@ cmake "$SOURCE_DIR" \
   -Dssl=ON \
   -Dmathmore=ON \
   -Dxrootd=OFF \
+  -Ddavix=OFF \
+  -Dbuiltin_davix=OFF \
   -Dfitsio=OFF \
   -Dbuiltin_cfitsio=OFF
 
