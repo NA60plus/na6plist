@@ -48,12 +48,16 @@ DISTRO_VERSION = OS_RELEASE.get("VERSION_ID", "unknown")
 
 
 def ensure_supported_platform():
-    """Reject platforms for which the current recipes are not supported."""
+    """Check that the current platform is supported by na6plist."""
+    if SYSTEM == "Darwin":
+        return
+
     if SYSTEM != "Linux":
         raise RuntimeError(
             f"Unsupported platform: {SYSTEM}. "
-            "Additions to na6plist for other operating systems are welcome!"
+            "na6pbuild currently supports Ubuntu and macOS."
         )
+
     if DISTRO != "ubuntu":
         detected = DISTRO or "unknown Linux distribution"
         raise RuntimeError(
@@ -450,15 +454,45 @@ def cmd_doctor(_args, _work_dir, _versions):
         print(f"    {name:<45} {status}")
 
     print("\n  Checking build libraries and versions:")
+
+    if SYSTEM == "Darwin":
+        readline_pkgconfig = "/opt/homebrew/opt/readline/lib/pkgconfig"
+        if os.path.isdir(readline_pkgconfig):
+            pkgconfig_paths = pc_env.get("PKG_CONFIG_PATH", "")
+            paths = [p for p in pkgconfig_paths.split(":") if p]
+            if readline_pkgconfig not in paths:
+                paths.insert(0, readline_pkgconfig)
+            pc_env["PKG_CONFIG_PATH"] = ":".join(paths)
+
     for name, (modules, minimum) in REQUIRED_PKG_CONFIG.items():
         if not shutil.which("pkg-config"):
             print(f"    {name:<55} {red('NOT CHECKED (pkg-config missing)')}")
             ok = False
             continue
-        found = next((module for module in modules if subprocess.run(
-            ["pkg-config", "--exists", module], env=pc_env,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0), None)
-        actual = None
+        # macOS provides OpenGL as a system framework rather than a
+        # pkg-config module such as the Linux "gl" module.
+        if SYSTEM == "Darwin" and name.startswith("OpenGL"):
+            opengl_framework = Path(
+                "/System/Library/Frameworks/OpenGL.framework"
+            )
+            if opengl_framework.exists():
+                found = "OpenGL.framework"
+                actual = "system"
+            else:
+                found = None
+                actual = None
+        else:
+            found = next((module for module in modules if subprocess.run(
+                ["pkg-config", "--exists", module], env=pc_env,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            ).returncode == 0), None)
+            actual = None
+            if found:
+                result = subprocess.run(
+                    ["pkg-config", "--modversion", found],
+                    capture_output=True, text=True, env=pc_env
+                )
+                actual = result.stdout.strip()
         if found:
             result = subprocess.run(["pkg-config", "--modversion", found],
                                     capture_output=True, text=True, env=pc_env)

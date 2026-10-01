@@ -80,12 +80,20 @@ done
 rm -f CMakeCache.txt
 rm -rf CMakeFiles
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    CMAKE_EXTRA_ARGS+=(
+        "-DCMAKE_INCLUDE_PATH=${FMT_PREFIX}/include"
+        "-DCMAKE_CXX_FLAGS=-I${FMT_PREFIX}/include"
+    )
+fi
+
 cmake "$SOURCE_DIR" \
+  "${CMAKE_EXTRA_ARGS[@]}" \
   -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
   -DCMAKE_BUILD_TYPE=Release \
   -DWITH_FLUKA=OFF \
   -DCMAKE_PREFIX_PATH="${BOOST_PREFIX};${FMT_PREFIX};${FAIRLOGGER_PREFIX};${ROOT_PREFIX};${GEANT4_PREFIX};${VMC_PREFIX};${VGM_PREFIX};${GEANT4VMC_PREFIX};${HEPMC3_PREFIX};${PYTHIA8_PREFIX};${HDF5_ROOT:-}" \
-  "${CMAKE_HDF5_ARGS[@]}" \
+  -DHDF5_ROOT="${HDF5_ROOT:-}" \
   -DROOT_DIR="${ROOT_PREFIX}/cmake" \
   -DGeant4_DIR="${GEANT4_PREFIX}/lib/cmake/Geant4" \
   -DVMC_DIR="${VMC_CMAKE_DIR}" \
