@@ -27,6 +27,29 @@ mkdir tst && cd tst
 na6psim -n 5 -g $NA6PROOT_ROOT/share/test/genbox.C+
 ```
 
+## MacOS
+```bash
+# 1. Create the python virtual environment and activate
+/opt/homebrew/bin/python3.12 -m venv venv
+source venv/bin/activate
+
+# 2. Install required CMake version
+python -m pip install --upgrade pip
+python -m pip install --upgrade "cmake<4"
+
+# 3. Install na6pbuild (from NA6PRoot repository root)
+pip install .
+
+# 4. Check that your system has the required tools
+na6pbuild doctor
+
+# 5. If necessary remove previous builds
+rm -rf ~/na6pbuild_sw
+
+# 6. Build everything (downloads sources automatically)
+python3 na6pbuild --root-version 6.32.06 build
+```
+
 ---
 
 ## Commands

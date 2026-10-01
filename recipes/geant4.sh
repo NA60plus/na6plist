@@ -35,13 +35,19 @@ for pcdir in "$HOME/local/lib/pkgconfig" "$HOME/local/lib64/pkgconfig"; do
   fi
 done
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    GEANT4_OPENGL_X11=OFF
+else
+    GEANT4_OPENGL_X11=ON
+fi
+
 cmake "$SOURCE_DIR" \
   -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
   -DCMAKE_BUILD_TYPE=Release \
   -DGEANT4_INSTALL_DATA=ON \
   -DGEANT4_USE_GDML=ON \
   -DGEANT4_USE_QT=OFF \
-  -DGEANT4_USE_OPENGL_X11=ON \
+  -DGEANT4_USE_OPENGL_X11="${GEANT4_OPENGL_X11}" \
   -DGEANT4_BUILD_MULTITHREADED=OFF \
   -DGEANT4_USE_SYSTEM_EXPAT=ON
 
