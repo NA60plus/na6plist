@@ -50,6 +50,29 @@ rm -rf ~/na6pbuild_sw
 python3 na6pbuild --root-version 6.32.06 build
 ```
 
+## MacOS --> macOS 27.0.1 con Xcode 27.0
+```bash
+# 1. ROOT version: 6.40.04
+# 2. Geant4 version: 11.2.2
+#    - ZLIB: use the system one (otherwise fdopen in zutil.h interfers with the declaration of the fdopen in the SDK of macOS)
+#      Modify line 395 of ~/na6pbuild_sw/
+         builds/geant4-11.2.2/CMakeCache.txt
+         GEANT4_USE_SYSTEM_ZLIB:BOOL=ON
+#    - g4tools: in source/externals/g4tools/include/tools/wroot/columns.icc, raw 402, the code refers to the not existing m_barnch. It has to be changed to m_branch. In the shell run:
+         FILE="/Users/chiara/na6pbuild_sw/sources/geant4-v11.2.2/source/externals/g4tools/include/tools/wroot/columns.icc"
+         grep -n 'm_barnch' "$FILE"
+#    - if the command shows the line 402, apply the correction:
+         sed -i '' 's/m_barnch/m_branch/g' "$FILE"
+#    - verify that there are no residual occurrences
+         grep -n 'm_barnch' "$FILE"
+# 3. Build e system zlib
+     - in the CMake command of na60proot.sh add the homebrew path of zlib
+         ZLIB_PREFIX="$(brew --prefix zlib)"
+     - add ${ZLIB_PREFIX} to CMAKE_PREFIX_PATH together with -DZLIB_ROOT="${ZLIB_PREFIX}"
+# 4. NA6PRoot not compatible with ROOT 6.40.04
+#    - CMake indicate incompatible signatures of target_link_libraries() for the targets target utilsLib, baseLib, simLib e recLib. ROOT 6.40.04 already used the signatures with keyword, while the files of the project used the signatures without keyword. The modification has been applied with a sed on the 4 files, keeping the list of the libraries. PRIVATE works for internal dependences; if dependences has to be propagated to the targer that use these libraries, PUBLIC could be needed 
+```
+
 ---
 
 ## Commands
